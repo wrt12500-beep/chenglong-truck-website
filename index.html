@@ -524,13 +524,13 @@ footer{background:#0A0A0A;border-top:1px solid rgba(255,255,255,.06);text-align:
         <div class="form-group">
           <label class="form-label">选择车型（自动算首付）</label>
           <select class="form-control" id="carPrice" onchange="calcFinance()">
-            <option value="162200">翼威2 · 100度电</option>
-            <option value="183100">翼威2 · 120度电</option>
-            <option value="175000" selected>翼威2 · 134度电</option>
-            <option value="206100">翼威2 · 140度电</option>
-            <option value="225000">翼威2 · 165度电（新款）</option>
-            <option value="151700">乘龙L3 · 单排版</option>
-            <option value="155400">乘龙L3 · 排半卧铺版</option>
+            <option value="162200" data-base-price="162200" data-label="翼威2 · 100度电">翼威2 · 100度电 (16.2万)</option>
+            <option value="183100" data-base-price="183100" data-label="翼威2 · 120度电">翼威2 · 120度电 (18.3万)</option>
+            <option value="175000" selected data-base-price="175000" data-label="翼威2 · 134度电">翼威2 · 134度电 (17.5万)</option>
+            <option value="206100" data-base-price="206100" data-label="翼威2 · 140度电">翼威2 · 140度电 (20.6万)</option>
+            <option value="225000" data-base-price="225000" data-label="翼威2 · 165度电（新款）">翼威2 · 165度电（新款） (22.5万)</option>
+            <option value="151700" data-base-price="151700" data-label="乘龙L3 · 单排版">乘龙L3 · 单排版 (15.2万)</option>
+            <option value="155400" data-base-price="155400" data-label="乘龙L3 · 排半卧铺版">乘龙L3 · 排半卧铺版 (15.5万)</option>
           </select>
           <div class="down-display" id="downDisplay">首付：请输入贷款金额</div>
         </div>
@@ -606,14 +606,20 @@ footer{background:#0A0A0A;border-top:1px solid rgba(255,255,255,.06);text-align:
       </div>
     </div>
     <div id="adminSetScreen" style="display:none">
-      <div class="admin-title">⚙️ 月息设置</div>
+      <div class="admin-title">⚙️ 价格与月息设置</div>
+      <div class="admin-group">
+        <div class="admin-label">价格系数（% — 默认100%）</div>
+        <input type="number" class="admin-input" id="adminPriceCoeff" step="0.5" min="80" max="120" placeholder="如：100">
+        <div style="font-size:11px;color:var(--grey);margin-top:3px;">统一调整所有车型参考价。如 103=上浮3%，97=下浮3%</div>
+      </div>
       <div class="admin-group">
         <div class="admin-label">月息（‰ 千分之几）</div>
         <input type="number" class="admin-input" id="adminMonthRate" step="0.01" min="0" max="30" placeholder="如：4.5">
       </div>
       <div class="admin-note">
         💡 月供 = 贷款金额 × (1 + 月息/1000 × 期数) ÷ 期数<br>
-        当前月息：<span id="currentRateDisplay" style="color:#C8001E;font-weight:700;"></span>‰
+        当前月息：<span id="currentRateDisplay" style="color:#C8001E;font-weight:700;"></span>‰<br>
+        当前价格系数：<span id="currentCoeffDisplay" style="color:#C8001E;font-weight:700;"></span>%
       </div>
       <div class="admin-btns">
         <button class="admin-save" onclick="saveRate()">保存生效</button>
@@ -627,6 +633,39 @@ footer{background:#0A0A0A;border-top:1px solid rgba(255,255,255,.06);text-align:
 const ADMIN_PWD="jc2026";
 let monthRate=5.4;
 let currentTerm=36;
+let priceCoeff=1.0;
+
+// 从 localStorage 加载保存的设置
+(function loadSettings(){
+  const saved=localStorage.getItem('chenglong_settings');
+  if(saved){
+    try{
+      const s=JSON.parse(saved);
+      if(s.monthRate) monthRate=s.monthRate;
+      if(s.priceCoeff) priceCoeff=s.priceCoeff;
+    }catch(e){}
+  }
+  updateDropdownPrices();
+  calcFinance();
+})();
+
+function updateDropdownPrices(){
+  const sel=document.getElementById('carPrice');
+  if(!sel) return;
+  const opts=sel.options;
+  for(let i=0;i<opts.length;i++){
+    const base=parseInt(opts[i].dataset.basePrice);
+    if(!base) continue;
+    const adj=Math.round(base*priceCoeff);
+    opts[i].value=adj;
+    const label=opts[i].dataset.label;
+    if(priceCoeff!==1.0){
+      opts[i].textContent=label+' ('+(base/10000).toFixed(1)+'→'+(adj/10000).toFixed(1)+'万)';
+    }else{
+      opts[i].textContent=label+' ('+(adj/10000).toFixed(1)+'万)';
+    }
+  }
+}
 
 function openAdmin(){
   document.getElementById("adminOverlay").classList.add("show");
@@ -642,7 +681,9 @@ function checkPwd(){
     document.getElementById("adminPwdScreen").style.display="none";
     document.getElementById("adminSetScreen").style.display="block";
     document.getElementById("adminMonthRate").value=monthRate;
+    document.getElementById("adminPriceCoeff").value=(priceCoeff*100).toFixed(1);
     document.getElementById("currentRateDisplay").textContent=monthRate;
+    document.getElementById("currentCoeffDisplay").textContent=(priceCoeff*100).toFixed(1);
   }else{
     document.getElementById("pwdError").style.display="block";
     document.getElementById("adminPwd").value="";
@@ -650,10 +691,14 @@ function checkPwd(){
 }
 function saveRate(){
   const v=parseFloat(document.getElementById("adminMonthRate").value);
-  if(!isNaN(v)&&v>0){monthRate=v;}
+  const c=parseFloat(document.getElementById("adminPriceCoeff").value);
+  if(!isNaN(v)&&v>0) monthRate=v;
+  if(!isNaN(c)&&c>=50&&c<=150) priceCoeff=c/100;
+  localStorage.setItem('chenglong_settings',JSON.stringify({monthRate,priceCoeff}));
+  updateDropdownPrices();
   calcFinance();
   closeAdmin();
-  showToast("✅ 月息已设置为 "+monthRate+"‰");
+  showToast("✅ 已保存 月息:"+monthRate+"‰  价格系数:"+(priceCoeff*100).toFixed(1)+"%");
 }
 function showToast(msg){
   const t=document.createElement("div");
