@@ -674,12 +674,7 @@ function updateDropdownPrices(){
     const adj=vid?getVehiclePrice(vid):base;
     opts[i].value=adj;
     const label=opts[i].dataset.label;
-    const delta=vid?(priceAdjustments[vid]||0):0;
-    if(delta!==0){
-      opts[i].textContent=label+' ('+(base/10000).toFixed(1)+'→'+(adj/10000).toFixed(1)+'万)';
-    }else{
-      opts[i].textContent=label+' ('+(adj/10000).toFixed(1)+'万)';
-    }
+    opts[i].textContent=label+' ('+(adj/10000).toFixed(1)+'万)';
   }
 }
 
